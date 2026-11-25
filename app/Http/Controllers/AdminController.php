@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CrashReport;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -62,7 +64,52 @@ class AdminController extends Controller
             'all' => User::count(),
         ];
 
-        return view('admin.users', compact('users', 'filter', 'q', 'counts'));
+        return view('admin.users', compact('users', 'filter', 'q', 'counts') + ['stats' => $this->stats()]);
+    }
+
+    /** Ringkasan untuk kartu statistik di atas daftar pengguna. */
+    private function stats(): array
+    {
+        $active = fn (int $days) => DB::table('personal_access_tokens')
+            ->where('tokenable_type', User::class)->where('last_used_at', '>=', now()->subDays($days))
+            ->distinct()->count('tokenable_id');
+
+        // Pendaftar per bulan, 6 bulan terakhir (dihitung di PHP agar sama di MySQL & SQLite).
+        $from = now()->startOfMonth()->subMonths(5);
+        $byMonth = User::where('created_at', '>=', $from)->pluck('created_at')
+            ->groupBy(fn ($d) => $d->format('Y-m'))->map->count();
+        $months = collect(range(0, 5))->map(function ($i) use ($from, $byMonth) {
+            $m = $from->copy()->addMonths($i);
+            return ['label' => $m->locale('id')->translatedFormat('M'), 'count' => $byMonth[$m->format('Y-m')] ?? 0];
+        });
+
+        return [
+            'users' => User::count(),
+            'new_month' => User::where('created_at', '>=', now()->startOfMonth())->count(),
+            'active7' => $active(7),
+            'active30' => $active(30),
+            'records' => DB::table('sync_records')->whereNull('deleted_at')->count(),
+            'crashes7' => CrashReport::where('created_at', '>=', now()->subDays(7))->count(),
+            'months' => $months,
+        ];
+    }
+
+    public function crashes(): View
+    {
+        $crashes = CrashReport::with('user:id,username')->latest()->paginate(30);
+        // Kelompokkan pesan yang sama agar terlihat crash mana yang paling sering.
+        $top = CrashReport::where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('message, app_version, count(*) as total, max(created_at) as last_at')
+            ->groupBy('message', 'app_version')->orderByDesc('total')->limit(10)->get();
+
+        return view('admin.crashes', compact('crashes', 'top'));
+    }
+
+    public function clearCrashes(): RedirectResponse
+    {
+        CrashReport::query()->delete();
+
+        return back()->with('status', 'Semua laporan crash dihapus.');
     }
 
     /** Aktifkan/perpanjang Premium. months = 0 berarti selamanya. */

@@ -55,6 +55,33 @@ class AdminTest extends TestCase
         $this->assertTrue($user->isPremium());
     }
 
+    public function test_crash_report_and_admin_pages(): void
+    {
+        $this->postJson('/api/crash', ['reports' => [[
+            'message' => 'java.lang.IllegalStateException: boom', 'stack' => "at a.b(C.kt:1)\nat d.e(F.kt:2)",
+            'app_version' => '1.4', 'device' => 'Xiaomi Redmi', 'android' => '14', 'occurred_at' => 1795521633789,
+        ]]])->assertOk()->assertJsonPath('saved', 1);
+        $this->postJson('/api/crash', ['reports' => []])->assertUnprocessable();
+
+        $this->post('/admin/login', ['username' => 'admin', 'password' => 'rahasia-admin']);
+        $this->get('/admin')->assertOk()->assertSee('Crash 7 hari')->assertSee('Pendaftar 6 bulan');
+        $this->get('/admin/crashes')->assertOk()->assertSee('boom')->assertSee('Xiaomi Redmi');
+        $this->post('/admin/crashes/clear')->assertRedirect();
+        $this->assertSame(0, \App\Models\CrashReport::count());
+    }
+
+    public function test_sync_accepts_goal_and_iou(): void
+    {
+        $token = $this->postJson('/api/register', [
+            'name' => 'A', 'username' => 'andi', 'email' => 'a@example.com',
+            'password' => 'rahasia123', 'password_confirmation' => 'rahasia123',
+        ])->json('token');
+        $this->withToken($token)->postJson('/api/sync', ['cursor' => 0, 'changes' => [
+            ['entity' => 'goal', 'id' => 'g1', 'updated_at' => 1, 'deleted_at' => null, 'data' => ['id' => 'g1', 'name' => 'Darurat']],
+            ['entity' => 'iou', 'id' => 'i1', 'updated_at' => 1, 'deleted_at' => null, 'data' => ['id' => 'i1', 'person' => 'Budi']],
+        ]])->assertOk();
+    }
+
     public function test_admin_disabled_without_password(): void
     {
         config(['admin.password' => '']);

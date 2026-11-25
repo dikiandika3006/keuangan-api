@@ -23,12 +23,28 @@
         td { display: block; border: 0; padding: 6px 14px; }
     }
 </style>
-<header>
-    <b>Admin · Keuangan Pribadi</b>
-    <form method="POST" action="{{ route('admin.logout') }}" style="margin:0">@csrf<button class="btn-ghost">Keluar</button></form>
-</header>
+@include('admin.header', ['active' => 'users'])
 <main>
     @if (session('status'))<div class="flash">{{ session('status') }}</div>@endif
+
+    <div class="stats">
+        <div class="card stat"><span>Pengguna</span><b>{{ $stats['users'] }}</b><small>+{{ $stats['new_month'] }} bulan ini</small></div>
+        <div class="card stat"><span>Aktif 7 hari</span><b>{{ $stats['active7'] }}</b><small>{{ $stats['active30'] }} dalam 30 hari</small></div>
+        <div class="card stat"><span>Premium aktif</span><b>{{ $counts['premium'] }}</b><small>{{ $counts['request'] }} pengajuan menunggu</small></div>
+        <div class="card stat"><span>Data tersinkron</span><b>{{ number_format($stats['records'], 0, ',', '.') }}</b><small>baris</small></div>
+        <a class="card stat" href="{{ route('admin.crashes') }}" style="text-decoration:none;color:inherit">
+            <span>Crash 7 hari</span><b style="color:{{ $stats['crashes7'] ? 'var(--err)' : 'inherit' }}">{{ $stats['crashes7'] }}</b><small>lihat detail ›</small>
+        </a>
+        <div class="card stat chart">
+            <span>Pendaftar 6 bulan</span>
+            @php($max = max(1, $stats['months']->max('count')))
+            <div class="bars">
+                @foreach ($stats['months'] as $m)
+                    <div title="{{ $m['count'] }}"><i style="height:{{ max(3, round($m['count'] / $max * 44)) }}px"></i><em>{{ $m['label'] }}</em></div>
+                @endforeach
+            </div>
+        </div>
+    </div>
 
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
         <nav class="tabs">

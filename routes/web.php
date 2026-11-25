@@ -19,6 +19,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/{user}/approve', [AdminController::class, 'approve'])->name('approve');
         Route::post('/users/{user}/revoke', [AdminController::class, 'revoke'])->name('revoke');
         Route::post('/users/{user}/reject', [AdminController::class, 'reject'])->name('reject');
+        Route::get('/crashes', [AdminController::class, 'crashes'])->name('crashes');
+        Route::post('/crashes/clear', [AdminController::class, 'clearCrashes'])->name('crashes.clear');
     });
 });
 
