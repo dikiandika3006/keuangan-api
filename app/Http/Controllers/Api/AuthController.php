@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -66,6 +68,68 @@ class AuthController extends Controller
         }
 
         return $this->tokenResponse($user, $data['device_name'] ?? 'android');
+    }
+
+    /**
+     * Daftar/masuk dengan Google. ID token dari aplikasi diverifikasi ke Google;
+     * akun dicari lewat google_id, lalu email (akun lama otomatis tertaut), selain itu dibuat baru.
+     */
+    public function google(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'id_token' => ['required', 'string', 'max:4096'],
+            'device_name' => ['nullable', 'string', 'max:100'],
+        ]);
+        $clients = config('services.google.client_ids', []);
+        if (empty($clients)) {
+            throw ValidationException::withMessages(['id_token' => 'Login Google belum diaktifkan di server.']);
+        }
+
+        $res = Http::timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', ['id_token' => $data['id_token']]);
+        $t = $res->json() ?? [];
+        $valid = $res->ok()
+            && in_array($t['aud'] ?? null, $clients, true)
+            && in_array($t['iss'] ?? null, ['accounts.google.com', 'https://accounts.google.com'], true)
+            && (int) ($t['exp'] ?? 0) > time()
+            && filter_var($t['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            && ! empty($t['sub']) && ! empty($t['email']);
+        if (! $valid) {
+            throw ValidationException::withMessages(['id_token' => 'Login Google gagal diverifikasi. Coba lagi.']);
+        }
+
+        $email = strtolower($t['email']);
+        $user = User::where('google_id', $t['sub'])->first() ?? User::where('email', $email)->first();
+        $created = false;
+        if (! $user) {
+            $user = User::create([
+                'name' => mb_substr(trim($t['name'] ?? '') ?: strstr($email, '@', true), 0, 60),
+                'username' => $this->uniqueUsername($email),
+                'email' => $email,
+                'password' => Str::random(40), // belum punya password; bisa dibuat lewat "Lupa password"
+            ]);
+            $created = true;
+        }
+        if ($user->google_id !== $t['sub']) {
+            $user->forceFill(['google_id' => $t['sub']])->save();
+        }
+        if (! $user->email_verified_at) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        return $this->tokenResponse($user, $data['device_name'] ?? 'android', $created ? 201 : 200);
+    }
+
+    /** Username dari bagian depan email, dibuat unik dengan angka bila perlu. */
+    private function uniqueUsername(string $email): string
+    {
+        $base = substr(preg_replace('/[^a-z0-9_.]/', '', strtolower(strstr($email, '@', true))) ?: 'user', 0, 24);
+        if (strlen($base) < 3) $base = str_pad($base, 3, '0');
+        $name = $base;
+        for ($i = 1; User::where('username', $name)->exists(); $i++) {
+            $name = $base.random_int(10, 9999);
+        }
+
+        return $name;
     }
 
     public function logout(Request $request): JsonResponse
