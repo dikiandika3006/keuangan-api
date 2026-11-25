@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SyncController extends Controller
 {
-    public const ENTITIES = ['account', 'category', 'txn', 'recurring', 'debt', 'bill_occ'];
+    public const ENTITIES = ['account', 'category', 'txn', 'recurring', 'debt', 'bill_occ', 'goal'];
 
     private const PULL_LIMIT = 1000;
 
