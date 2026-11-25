@@ -1,0 +1,19 @@
+# Repo ini di-deploy langsung ke public_html/keuangan-api (Hostinger Git, tanpa SSH).
+# Semua request diarahkan ke index.php di root; .env, vendor, storage, dll. tidak bisa dibuka langsung.
+
+Options -Indexes -MultiViews
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Token Sanctum (Authorization: Bearer ...)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    RewriteRule ^index\.php$ - [L]
+    RewriteRule ^ index.php [L]
+</IfModule>
