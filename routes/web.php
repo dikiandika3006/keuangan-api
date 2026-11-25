@@ -1,11 +1,26 @@
 <?php
 
+use App\Http\Controllers\AdminController;
+use App\Http\Middleware\EnsureAdmin;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => response()->json(['app' => 'Keuangan Pribadi API', 'status' => 'ok']));
+
+// Dashboard admin: persetujuan & status Premium.
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/login', [AdminController::class, 'loginForm'])->name('login');
+    Route::post('/login', [AdminController::class, 'login'])->middleware('throttle:5,1');
+    Route::middleware(EnsureAdmin::class)->group(function () {
+        Route::get('/', [AdminController::class, 'users'])->name('users');
+        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
+        Route::post('/users/{user}/approve', [AdminController::class, 'approve'])->name('approve');
+        Route::post('/users/{user}/revoke', [AdminController::class, 'revoke'])->name('revoke');
+        Route::post('/users/{user}/reject', [AdminController::class, 'reject'])->name('reject');
+    });
+});
 
 // Halaman reset password dari tautan email "lupa password".
 Route::get('/reset-password/{token}', fn (Request $request, string $token) => view('reset-password', [

@@ -80,6 +80,21 @@ class AuthController extends Controller
         return response()->json(['user' => $request->user()->toProfile()]);
     }
 
+    /** Pengguna mengajukan upgrade Premium; disetujui admin lewat /admin. */
+    public function requestPremium(Request $request): JsonResponse
+    {
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:255']]);
+        $user = $request->user();
+        if (! $user->isPremium()) {
+            $user->forceFill([
+                'premium_requested_at' => now(),
+                'premium_request_note' => isset($data['note']) ? trim($data['note']) : null,
+            ])->save();
+        }
+
+        return response()->json(['user' => $user->toProfile()]);
+    }
+
     public function updateProfile(Request $request): JsonResponse
     {
         $user = $request->user();

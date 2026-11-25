@@ -23,6 +23,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'premium_until' => 'datetime',
+            'premium_requested_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -47,6 +48,7 @@ class User extends Authenticatable
             'email' => $this->email,
             'plan' => $this->isPremium() ? 'premium' : 'free',
             'premium_until' => $this->premium_until?->toIso8601String(),
+            'premium_requested' => ! $this->isPremium() && $this->premium_requested_at !== null,
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
